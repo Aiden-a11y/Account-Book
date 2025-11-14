@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8" />
-  <title>Aiden's Account Book Dashboard</title>
+  <title>나만의 #가계부 대시보드</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <script src="https://cdn.tailwindcss.com"></script>
 </head>
@@ -11,7 +11,7 @@
     <!-- 헤더 -->
     <header class="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
       <div>
-        <h1 class="text-2xl font-bold">Aiden's Account Book Dashboard</h1>
+        <h1 class="text-2xl font-bold">나만의 #가계부 대시보드</h1>
         <p class="text-sm text-slate-500">
           브라우저 <code>localStorage</code> 에 자동 저장됩니다. (index.html 한 파일로 동작)
         </p>
@@ -38,7 +38,7 @@
       <nav class="flex flex-wrap gap-2 text-sm">
         <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-sky-500 text-sky-600 font-medium"
                 data-tab="ledger">
-          가계부 요약
+          가계부
         </button>
         <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-transparent text-slate-500 hover:text-slate-700"
                 data-tab="fixed">
@@ -88,7 +88,7 @@
       <section class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
         <div class="bg-white rounded-2xl shadow-sm p-4">
           <div class="text-xs text-slate-500 mb-1">변동비 합계 (기간)</div>
-          <div id="summary-variable" class="text-2xl font-bold">-</div>
+          <div id="summary-variable" class="text-2xl font-semibold">-</div>
         </div>
         <div class="bg-white rounded-2xl shadow-sm p-4">
           <div class="text-xs text-slate-500 mb-1">고정비 합계 (기간)</div>
@@ -156,9 +156,11 @@
                   class="border rounded-md px-2 py-1.5 w-full" />
           </div>
           <div>
-            <label class="block text-xs text-slate-500 mb-1">결제수단</label>
-            <input name="payment" type="text" placeholder="예: Chase Freedom"
-                  class="border rounded-md px-2 py-1.5 w-full" />
+            <label class="block text-xs text-slate-500 mb-1">결제 계좌/카드</label>
+            <select name="paymentAccountId" id="payment-select"
+                    class="border rounded-md px-2 py-1.5 w-full">
+              <!-- JS에서 계좌 목록으로 채움 -->
+            </select>
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">유형</label>
@@ -180,6 +182,9 @@
             </button>
           </div>
         </form>
+        <p class="mt-1 text-xs text-slate-500">
+          * 결제 계좌/카드를 선택하지 않으면, <b>현금/기타</b>로 기록되고 계좌 잔액에는 반영되지 않습니다.
+        </p>
       </section>
 
       <!-- 상세 내역 -->
@@ -248,8 +253,9 @@
           </div>
           <div>
             <label class="block text-xs text-slate-500 mb-1">결제수단</label>
-            <input name="payment" type="text" placeholder="예: Chase Freedom"
-                   class="border rounded-md px-2 py-1.5 w-full" />
+            <select name="paymentAccountId" class="border rounded-md px-2 py-1.5 w-full" id="fixed-payment-select">
+              <!-- JS에서 계좌 목록으로 채움 -->
+            </select>
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs text-slate-500 mb-1">메모 (선택)</label>
@@ -347,7 +353,7 @@
           </div>
           <div class="md:col-span-2">
             <label class="block text-xs text-slate-500 mb-1">증권사</label>
-            <input name="broker" type="text" placeholder="예: Robinhood, Webull"
+            <input name="broker" type="text" placeholder="예: Charles Schwab"
                    class="border rounded-md px-2 py-1.5 w-full" />
           </div>
           <div class="md:col-span-6 flex justify-end">
@@ -408,6 +414,7 @@
             <select name="type" class="border rounded-md px-2 py-1.5 w-full">
               <option value="bank">은행</option>
               <option value="card">카드</option>
+              <option value="brokerage">증권</option>
             </select>
           </div>
           <div>
@@ -466,7 +473,7 @@
   </div>
 
   <script>
-    const STORAGE_KEY = "aiden_ledger_v3";
+    const STORAGE_KEY = "aiden_ledger_v4";
 
     function formatCurrency(num) {
       return num.toLocaleString("en-US", {
@@ -566,69 +573,347 @@
       return entry;
     }
 
+    // ---- 시드 데이터: 계좌/카드 ----
+    const seedAccounts = [
+      { id: "acct-chase-freedom", name: "Chase Freedom", type: "card", balance: 0 },
+      { id: "acct-chase-united", name: "Chase United", type: "card", balance: 0 },
+      { id: "acct-discover", name: "Discover", type: "card", balance: 0 },
+      { id: "acct-apple-card", name: "Apple Card", type: "card", balance: 0 },
+      { id: "acct-boa", name: "Bank of America", type: "bank", balance: 0 },
+      { id: "acct-chase-bank", name: "Chase", type: "bank", balance: 0 },
+      { id: "acct-schwab", name: "Charles Schwab", type: "brokerage", balance: 0 },
+    ];
+
     // ---- 시드 데이터: 가계부 엔트리 ----
     const seedEntries = [
       // 고정비
-      { id: "f-2025-10-29-rent", date: "2025-10-29", type: "fixed", desc: "룸 렌트비", amount: 1100.0, payment: "Bank of America", note: "월세" },
-      { id: "f-2025-11-01-car",  date: "2025-11-01", type: "fixed", desc: "차량 할부", amount: 586.86, payment: "N/A", note: "고정비" },
-      { id: "f-2025-11-01-tesla-month", date: "2025-11-01", type: "fixed", desc: "Tesla 충전(월 평균)", amount: 110.0, payment: "N/A", note: "고정비" },
-      { id: "f-2025-11-01-icloud", date: "2025-11-01", type: "fixed", desc: "iCloud 구독", amount: 10.0, payment: "N/A", note: "고정비" },
-      { id: "f-2025-11-01-gpt", date: "2025-11-01", type: "fixed", desc: "ChatGPT 구독", amount: 20.0, payment: "N/A", note: "고정비" },
-      { id: "f-2025-11-01-fsd", date: "2025-11-01", type: "fixed", desc: "FSD 구독", amount: 100.0, payment: "Tesla", note: "고정비" },
-      { id: "f-2025-11-13-att", date: "2025-11-13", type: "fixed", desc: "AT&T", amount: 29.48, payment: "Chase Checking", note: "고정비" },
+      {
+        id: "f-2025-10-29-rent",
+        date: "2025-10-29",
+        type: "fixed",
+        desc: "룸 렌트비",
+        amount: 1100.0,
+        payment: "Bank of America",
+        paymentAccountId: "acct-boa",
+        note: "월세",
+      },
+      {
+        id: "f-2025-11-01-car",
+        date: "2025-11-01",
+        type: "fixed",
+        desc: "차량 할부",
+        amount: 586.86,
+        payment: "Bank of America",
+        paymentAccountId: "acct-boa",
+        note: "고정비",
+      },
+      {
+        id: "f-2025-11-01-tesla-month",
+        date: "2025-11-01",
+        type: "fixed",
+        desc: "Tesla 충전(월 평균)",
+        amount: 110.0,
+        payment: "Apple Card",
+        paymentAccountId: "acct-apple-card",
+        note: "고정비",
+      },
+      {
+        id: "f-2025-11-01-icloud",
+        date: "2025-11-01",
+        type: "fixed",
+        desc: "iCloud 구독",
+        amount: 10.0,
+        payment: "Apple Card",
+        paymentAccountId: "acct-apple-card",
+        note: "고정비",
+      },
+      {
+        id: "f-2025-11-01-gpt",
+        date: "2025-11-01",
+        type: "fixed",
+        desc: "ChatGPT 구독",
+        amount: 20.0,
+        payment: "Apple Card",
+        paymentAccountId: "acct-apple-card",
+        note: "고정비",
+      },
+      {
+        id: "f-2025-11-01-fsd",
+        date: "2025-11-01",
+        type: "fixed",
+        desc: "FSD 구독",
+        amount: 100.0,
+        payment: "Apple Card",
+        paymentAccountId: "acct-apple-card",
+        note: "고정비",
+      },
+      {
+        id: "f-2025-11-13-att",
+        date: "2025-11-13",
+        type: "fixed",
+        desc: "AT&T",
+        amount: 29.48,
+        payment: "Chase",
+        paymentAccountId: "acct-chase-bank",
+        note: "고정비",
+      },
 
       // 수입
-      { id: "i-2025-11-14-salary", date: "2025-11-14", type: "income", desc: "급여", amount: 1589.50, payment: "Chase Checking", note: "" },
+      {
+        id: "i-2025-11-14-salary",
+        date: "2025-11-14",
+        type: "income",
+        desc: "급여",
+        amount: 1589.5,
+        payment: "Chase",
+        paymentAccountId: "acct-chase-bank",
+        note: "",
+      },
 
-      // 변동비
-      { id: "v-2025-11-01-tesla-1", date: "2025-11-01", type: "variable", desc: "Tesla 슈퍼차져", amount: 6.20, payment: "Discover", note: "충전" },
-      { id: "v-2025-11-02-tesla-2", date: "2025-11-02", type: "variable", desc: "Tesla 슈퍼차져", amount: 13.02, payment: "Discover", note: "충전" },
-      { id: "v-2025-11-03-bbw", date: "2025-11-03", type: "variable", desc: "Bath & Body Works", amount: 9.64, payment: "Chase United", note: "비누" },
-      { id: "v-2025-11-03-walmart", date: "2025-11-03", type: "variable", desc: "Walmart", amount: 47.50, payment: "Chase Freedom Unlimited", note: "닭가슴살, 계란, 프로틴 요거트, 사과 비누" },
-      { id: "v-2025-11-06-vm-1", date: "2025-11-06", type: "variable", desc: "Vending Machine", amount: 3.75, payment: "Chase Freedom", note: "간식" },
-      { id: "v-2025-11-06-amz-cos", date: "2025-11-06", type: "variable", desc: "Amazon 화장품", amount: 38.85, payment: "Discover", note: "화장품" },
-      { id: "v-2025-11-07-dinner", date: "2025-11-07", type: "variable", desc: "저녁", amount: 201.58, payment: "Chase Freedom", note: "식비" },
-      { id: "v-2025-11-07-batting", date: "2025-11-07", type: "variable", desc: "배팅 그립", amount: 15.20, payment: "Chase Freedom", note: "야구용품" },
-      { id: "v-2025-11-07-kt", date: "2025-11-07", type: "variable", desc: "KT 익스프레스", amount: 25.00, payment: "Chase Freedom", note: "운송" },
-      { id: "v-2025-11-08-bread", date: "2025-11-08", type: "variable", desc: "빵", amount: 9.67, payment: "Chase Freedom", note: "빵" },
-      { id: "v-2025-11-08-milk", date: "2025-11-08", type: "variable", desc: "우유", amount: 3.59, payment: "Chase United", note: "우유" },
-      { id: "v-2025-11-08-cafe", date: "2025-11-08", type: "variable", desc: "카페", amount: 33.50, payment: "Chase United", note: "카페" },
-      { id: "v-2025-11-08-tesla-3", date: "2025-11-08", type: "variable", desc: "Tesla 슈퍼차져", amount: 6.79, payment: "Discover", note: "충전" },
-      { id: "v-2025-11-09-icecream", date: "2025-11-09", type: "variable", desc: "Icecream", amount: 13.90, payment: "Chase Freedom", note: "디저트" },
-      { id: "v-2025-11-09-parking", date: "2025-11-09", type: "variable", desc: "Beach Parking", amount: 6.25, payment: "Chase Freedom", note: "주차" },
-      { id: "v-2025-11-09-bag", date: "2025-11-09", type: "variable", desc: "Amazon 러닝 가방", amount: 29.34, payment: "Discover", note: "러닝용품" },
-      { id: "v-2025-11-09-tesla-4", date: "2025-11-09", type: "variable", desc: "Tesla 슈퍼차져", amount: 20.85, payment: "Discover", note: "충전" },
-      { id: "v-2025-11-10-panera", date: "2025-11-10", type: "variable", desc: "Panera Bread", amount: 10.32, payment: "Chase Freedom", note: "아침" },
-      { id: "v-2025-11-10-oreo", date: "2025-11-10", type: "variable", desc: "Oreo 과자", amount: 1.75, payment: "Chase Freedom", note: "간식" },
-      { id: "v-2025-11-10-stater", date: "2025-11-10", type: "variable", desc: "Stater Bros 저녁", amount: 14.43, payment: "Chase Freedom", note: "저녁" },
-      { id: "v-2025-11-10-vm-2", date: "2025-11-10", type: "variable", desc: "Vending Machine", amount: 4.74, payment: "Chase Freedom", note: "간식" },
-      { id: "v-2025-11-11-chickfila", date: "2025-11-11", type: "variable", desc: "Chick-fil-A", amount: 17.22, payment: "Chase Freedom", note: "점심" },
-      { id: "v-2025-11-12-hair", date: "2025-11-12", type: "variable", desc: "Amazon 헤어제품", amount: 42.48, payment: "Discover", note: "헤어제품" },
+      // 변동비 (기존 #가계부 데이터)
+      {
+        id: "v-2025-11-01-tesla-1",
+        date: "2025-11-01",
+        type: "variable",
+        desc: "Tesla 슈퍼차져",
+        amount: 6.2,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "충전",
+      },
+      {
+        id: "v-2025-11-02-tesla-2",
+        date: "2025-11-02",
+        type: "variable",
+        desc: "Tesla 슈퍼차져",
+        amount: 13.02,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "충전",
+      },
+      {
+        id: "v-2025-11-03-bbw",
+        date: "2025-11-03",
+        type: "variable",
+        desc: "Bath & Body Works",
+        amount: 9.64,
+        payment: "Chase United",
+        paymentAccountId: "acct-chase-united",
+        note: "비누",
+      },
+      {
+        id: "v-2025-11-03-walmart",
+        date: "2025-11-03",
+        type: "variable",
+        desc: "Walmart",
+        amount: 47.5,
+        payment: "Chase Freedom Unlimited",
+        paymentAccountId: null, // Freedom Unlimited는 나중에 계좌로 추가해도 됨
+        note: "닭가슴살, 계란, 프로틴 요거트, 사과 비누",
+      },
+      {
+        id: "v-2025-11-06-vm-1",
+        date: "2025-11-06",
+        type: "variable",
+        desc: "Vending Machine",
+        amount: 3.75,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "간식",
+      },
+      {
+        id: "v-2025-11-06-amz-cos",
+        date: "2025-11-06",
+        type: "variable",
+        desc: "Amazon 화장품",
+        amount: 38.85,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "화장품",
+      },
+      {
+        id: "v-2025-11-07-dinner",
+        date: "2025-11-07",
+        type: "variable",
+        desc: "저녁",
+        amount: 201.58,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "식비",
+      },
+      {
+        id: "v-2025-11-07-batting",
+        date: "2025-11-07",
+        type: "variable",
+        desc: "배팅 그립",
+        amount: 15.2,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "야구용품",
+      },
+      {
+        id: "v-2025-11-07-kt",
+        date: "2025-11-07",
+        type: "variable",
+        desc: "KT 익스프레스",
+        amount: 25.0,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "운송",
+      },
+      {
+        id: "v-2025-11-08-bread",
+        date: "2025-11-08",
+        type: "variable",
+        desc: "빵",
+        amount: 9.67,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "빵",
+      },
+      {
+        id: "v-2025-11-08-milk",
+        date: "2025-11-08",
+        type: "variable",
+        desc: "우유",
+        amount: 3.59,
+        payment: "Chase United",
+        paymentAccountId: "acct-chase-united",
+        note: "우유",
+      },
+      {
+        id: "v-2025-11-08-cafe",
+        date: "2025-11-08",
+        type: "variable",
+        desc: "카페",
+        amount: 33.5,
+        payment: "Chase United",
+        paymentAccountId: "acct-chase-united",
+        note: "카페",
+      },
+      {
+        id: "v-2025-11-08-tesla-3",
+        date: "2025-11-08",
+        type: "variable",
+        desc: "Tesla 슈퍼차져",
+        amount: 6.79,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "충전",
+      },
+      {
+        id: "v-2025-11-09-icecream",
+        date: "2025-11-09",
+        type: "variable",
+        desc: "Icecream",
+        amount: 13.9,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "디저트",
+      },
+      {
+        id: "v-2025-11-09-parking",
+        date: "2025-11-09",
+        type: "variable",
+        desc: "Beach Parking",
+        amount: 6.25,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "주차",
+      },
+      {
+        id: "v-2025-11-09-bag",
+        date: "2025-11-09",
+        type: "variable",
+        desc: "Amazon 러닝 가방",
+        amount: 29.34,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "러닝용품",
+      },
+      {
+        id: "v-2025-11-09-tesla-4",
+        date: "2025-11-09",
+        type: "variable",
+        desc: "Tesla 슈퍼차져",
+        amount: 20.85,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "충전",
+      },
+      {
+        id: "v-2025-11-10-panera",
+        date: "2025-11-10",
+        type: "variable",
+        desc: "Panera Bread",
+        amount: 10.32,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "아침",
+      },
+      {
+        id: "v-2025-11-10-oreo",
+        date: "2025-11-10",
+        type: "variable",
+        desc: "Oreo 과자",
+        amount: 1.75,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "간식",
+      },
+      {
+        id: "v-2025-11-10-stater",
+        date: "2025-11-10",
+        type: "variable",
+        desc: "Stater Bros 저녁",
+        amount: 14.43,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "저녁",
+      },
+      {
+        id: "v-2025-11-10-vm-2",
+        date: "2025-11-10",
+        type: "variable",
+        desc: "Vending Machine",
+        amount: 4.74,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "간식",
+      },
+      {
+        id: "v-2025-11-11-chickfila",
+        date: "2025-11-11",
+        type: "variable",
+        desc: "Chick-fil-A",
+        amount: 17.22,
+        payment: "Chase Freedom",
+        paymentAccountId: "acct-chase-freedom",
+        note: "점심",
+      },
+      {
+        id: "v-2025-11-12-hair",
+        date: "2025-11-12",
+        type: "variable",
+        desc: "Amazon 헤어제품",
+        amount: 42.48,
+        payment: "Discover",
+        paymentAccountId: "acct-discover",
+        note: "헤어제품",
+      },
     ].map(categorize);
 
     // ---- 시드 데이터: 투자 ----
     const seedInvest = [
-      { id: "nvda-1", symbol: "NVDA", qty: 2, price: 384.0, date: "2025-11-01", broker: "-" },
-      { id: "tsla-1", symbol: "TSLA", qty: 1, price: 465.21, date: "2025-11-01", broker: "-" },
-      { id: "tsla-2", symbol: "TSLA", qty: 1, price: 419.82, date: "2025-11-01", broker: "-" },
-      { id: "spyg-1", symbol: "SPYG", qty: 1, price: 107.71, date: "2025-11-01", broker: "-" },
-    ];
-
-    // ---- 시드 데이터: 계좌/카드 ----
-    const seedAccounts = [
-      { id: "acct-chase-checking", name: "Chase Checking", type: "bank", balance: 0 },
-      { id: "acct-boa", name: "Bank of America", type: "bank", balance: 0 },
-      { id: "acct-freedom", name: "Chase Freedom", type: "card", balance: 0 },
-      { id: "acct-freedom-unl", name: "Chase Freedom Unlimited", type: "card", balance: 0 },
-      { id: "acct-united", name: "Chase United", type: "card", balance: 0 },
-      { id: "acct-discover", name: "Discover", type: "card", balance: 0 },
+      { id: "nvda-1", symbol: "NVDA", qty: 2, price: 384.0, date: "2025-11-01", broker: "Charles Schwab" },
+      { id: "tsla-1", symbol: "TSLA", qty: 1, price: 465.21, date: "2025-11-01", broker: "Charles Schwab" },
+      { id: "tsla-2", symbol: "TSLA", qty: 1, price: 419.82, date: "2025-11-01", broker: "Charles Schwab" },
+      { id: "spyg-1", symbol: "SPYG", qty: 1, price: 107.71, date: "2025-11-01", broker: "Charles Schwab" },
     ];
 
     let entries = [];
     let invest = [];
     let accounts = [];
-
-    // 고정비 편집 중인 행 ID
     let editingFixedId = null;
 
     function loadState() {
@@ -642,8 +927,6 @@
           };
         }
         const parsed = JSON.parse(raw);
-
-        // 옛날 버전: 배열만 저장돼 있는 경우
         if (Array.isArray(parsed)) {
           return {
             entries: parsed.map(categorize),
@@ -651,7 +934,6 @@
             accounts: seedAccounts.slice(),
           };
         }
-
         return {
           entries: (parsed.entries || seedEntries).map(categorize),
           invest: parsed.invest || seedInvest.slice(),
@@ -677,6 +959,37 @@
     }
 
     ({ entries, invest, accounts } = loadState());
+
+    // ---- 계좌 찾기 헬퍼 ----
+    function findAccountById(id) {
+      if (!id) return null;
+      return accounts.find((a) => a.id === id) || null;
+    }
+
+    // ---- 지출/수입이 계좌에 미치는 영향 적용 ----
+    function applyEntryToAccounts(entry, reverse = false) {
+      if (!entry.paymentAccountId) return;
+      const acc = findAccountById(entry.paymentAccountId);
+      if (!acc) return;
+
+      const amt = Number(entry.amount) || 0;
+      if (!amt) return;
+      const mult = reverse ? -1 : 1;
+
+      if (entry.type === "income") {
+        if (acc.type === "bank" || acc.type === "brokerage") {
+          acc.balance += mult * amt;
+        } else if (acc.type === "card") {
+          acc.balance -= mult * amt; // 수입을 카드로 받는 경우는 거의 없지만, 논리상 반대로
+        }
+      } else if (entry.type === "variable" || entry.type === "fixed") {
+        if (acc.type === "bank" || acc.type === "brokerage") {
+          acc.balance -= mult * amt; // 은행/증권 잔고 감소
+        } else if (acc.type === "card") {
+          acc.balance += mult * amt; // 카드 사용액(부채) 증가
+        }
+      }
+    }
 
     // ---- 가계부 렌더링 ----
     function renderLedger() {
@@ -708,8 +1021,7 @@
       document.getElementById("summary-fixed").textContent = formatCurrency(sumFixed);
       document.getElementById("summary-income").textContent = formatCurrency(sumIncome);
       document.getElementById("summary-net").textContent = formatCurrency(sumIncome - sumVariable - sumFixed);
-      document.getElementById("summary-count").textContent =
-        `표시된 내역: ${filtered.length}건`;
+      document.getElementById("summary-count").textContent = `표시된 내역: ${filtered.length}건`;
 
       // 카테고리 요약 (변동비)
       const catMap = {};
@@ -820,7 +1132,10 @@
       Array.from(document.querySelectorAll(".btn-delete")).forEach((btn) => {
         btn.onclick = () => {
           const id = btn.getAttribute("data-id");
-          if (!confirm("이 내역을 삭제할까요?")) return;
+          const target = entries.find((e) => e.id === id);
+          if (!target) return;
+          if (!confirm("이 내역을 삭제할까요? (계좌 잔액도 되돌립니다)")) return;
+          applyEntryToAccounts(target, true);
           entries = entries.filter((e) => e.id !== id);
           saveState();
           renderAll();
@@ -828,7 +1143,7 @@
       });
     }
 
-    // ---- 고정비 탭 렌더링 (행 안에서 수정) ----
+    // ---- 고정비 탭 렌더링 ----
     function renderFixedTab() {
       const fixedBody = document.getElementById("fixed-body");
       fixedBody.innerHTML = "";
@@ -843,7 +1158,6 @@
           tr.className = "border-t";
 
           if (!isEditing) {
-            // 보기 모드
             tr.innerHTML = `
               <td class="px-3 py-2 whitespace-nowrap text-xs md:text-sm">${e.desc}</td>
               <td class="px-3 py-2 whitespace-nowrap text-xs md:text-sm">${e.category || ""}</td>
@@ -862,7 +1176,6 @@
               </td>
             `;
           } else {
-            // 편집 모드
             tr.innerHTML = `
               <td class="px-3 py-2 whitespace-nowrap text-xs md:text-sm">
                 <input
@@ -896,6 +1209,8 @@
                   data-field="payment"
                   class="fixed-input border rounded-md px-2 py-1 text-xs md:text-sm w-full"
                   value="${e.payment || ""}"
+                  disabled
+                  title="결제 계좌 변경은 아직 수동으로 처리해야 합니다."
                 />
               </td>
               <td class="px-3 py-2 whitespace-nowrap text-xs md:text-sm">
@@ -922,7 +1237,6 @@
           fixedBody.appendChild(tr);
         });
 
-      // 수정 → 편집 모드
       document.querySelectorAll(".btn-fixed-edit").forEach((btn) => {
         btn.onclick = () => {
           const id = btn.getAttribute("data-id");
@@ -931,7 +1245,6 @@
         };
       });
 
-      // 저장
       document.querySelectorAll(".btn-fixed-save").forEach((btn) => {
         btn.onclick = () => {
           const id = btn.getAttribute("data-id");
@@ -954,10 +1267,9 @@
           target.desc = (temp.desc || "").trim() || target.desc;
           target.category = (temp.category || "").trim() || target.category;
           target.amount = amt;
-          target.payment = (temp.payment || "").trim();
           target.note = (temp.note || "").trim();
 
-          categorize(target); // 텍스트 기준으로 다시 분류
+          categorize(target);
 
           editingFixedId = null;
           saveState();
@@ -965,7 +1277,6 @@
         };
       });
 
-      // 취소
       document.querySelectorAll(".btn-fixed-cancel").forEach((btn) => {
         btn.onclick = () => {
           editingFixedId = null;
@@ -973,11 +1284,13 @@
         };
       });
 
-      // 삭제
       document.querySelectorAll(".btn-fixed-delete").forEach((btn) => {
         btn.onclick = () => {
           const id = btn.getAttribute("data-id");
-          if (!confirm("이 고정비 항목을 삭제할까요?")) return;
+          const target = entries.find((e) => e.id === id);
+          if (!target) return;
+          if (!confirm("이 고정비 항목을 삭제할까요? (계좌 잔액도 되돌립니다)")) return;
+          applyEntryToAccounts(target, true);
           entries = entries.filter((e) => e.id !== id);
           saveState();
           renderAll();
@@ -1079,11 +1392,17 @@
         .slice()
         .sort((a, b) => a.name.localeCompare(b.name))
         .forEach((a) => {
-          const typeLabel = a.type === "bank" ? "은행" : "카드";
-          const typeBadge =
-            a.type === "bank"
-              ? "bg-emerald-100 text-emerald-800"
-              : "bg-sky-100 text-sky-800";
+          let typeLabel, typeBadge;
+          if (a.type === "bank") {
+            typeLabel = "은행";
+            typeBadge = "bg-emerald-100 text-emerald-800";
+          } else if (a.type === "card") {
+            typeLabel = "카드";
+            typeBadge = "bg-sky-100 text-sky-800";
+          } else {
+            typeLabel = "증권";
+            typeBadge = "bg-purple-100 text-purple-800";
+          }
 
           const tr = document.createElement("tr");
           tr.className = "border-t";
@@ -1148,13 +1467,61 @@
       toSel.innerHTML = "";
 
       accounts.forEach((a) => {
+        const label = `${a.name} (${a.type === "bank" ? "은행" : a.type === "card" ? "카드" : "증권"})`;
         const opt1 = document.createElement("option");
         opt1.value = a.id;
-        opt1.textContent = `${a.name} (${a.type === "bank" ? "은행" : "카드"})`;
+        opt1.textContent = label;
         const opt2 = opt1.cloneNode(true);
         fromSel.appendChild(opt1);
         toSel.appendChild(opt2);
       });
+    }
+
+    // ---- 결제 계좌 선택 옵션 업데이트 ----
+    function updatePaymentOptions() {
+      const paySel = document.getElementById("payment-select");
+      const fixedPaySel = document.getElementById("fixed-payment-select");
+      if (paySel) {
+        const current = paySel.value;
+        paySel.innerHTML = "";
+        const optNone = document.createElement("option");
+        optNone.value = "";
+        optNone.textContent = "계좌 선택 안 함 (현금/기타)";
+        paySel.appendChild(optNone);
+
+        accounts.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = a.id;
+          const typeLabel = a.type === "bank" ? "은행" : a.type === "card" ? "카드" : "증권";
+          opt.textContent = `${a.name} (${typeLabel})`;
+          paySel.appendChild(opt);
+        });
+
+        if (Array.from(paySel.options).some((o) => o.value === current)) {
+          paySel.value = current;
+        }
+      }
+
+      if (fixedPaySel) {
+        const current = fixedPaySel.value;
+        fixedPaySel.innerHTML = "";
+        const optNone2 = document.createElement("option");
+        optNone2.value = "";
+        optNone2.textContent = "계좌 선택 안 함 (현금/기타)";
+        fixedPaySel.appendChild(optNone2);
+
+        accounts.forEach((a) => {
+          const opt = document.createElement("option");
+          opt.value = a.id;
+          const typeLabel = a.type === "bank" ? "은행" : a.type === "card" ? "카드" : "증권";
+          opt.textContent = `${a.name} (${typeLabel})`;
+          fixedPaySel.appendChild(opt);
+        });
+
+        if (Array.from(fixedPaySel.options).some((o) => o.value === current)) {
+          fixedPaySel.value = current;
+        }
+      }
     }
 
     function renderAll() {
@@ -1162,6 +1529,7 @@
       renderFixedTab();
       renderInvest();
       renderAccounts();
+      updatePaymentOptions();
     }
 
     // ---- 탭 전환 ----
@@ -1205,7 +1573,7 @@
       const date = form.date.value;
       const desc = form.desc.value.trim();
       const amount = parseFloat(form.amount.value);
-      const payment = form.payment.value.trim();
+      const paymentAccountId = form.paymentAccountId.value;
       const type = form.type.value;
       const note = form.note.value.trim();
 
@@ -1214,20 +1582,31 @@
         return;
       }
 
+      let paymentLabel = "현금/기타";
+      if (paymentAccountId) {
+        const acc = findAccountById(paymentAccountId);
+        if (acc) {
+          paymentLabel = acc.name;
+        }
+      }
+
       let entry = {
         id: `u-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         date,
         desc,
         amount,
-        payment,
         type,
+        payment: paymentLabel,
+        paymentAccountId: paymentAccountId || null,
         note,
       };
       entry = categorize(entry);
       entries.push(entry);
+      applyEntryToAccounts(entry, false);
       saveState();
+      const keepDate = date;
       form.reset();
-      form.date.value = date;
+      form.date.value = keepDate;
       renderAll();
     });
 
@@ -1236,7 +1615,7 @@
       const form = e.target;
       const desc = form.desc.value.trim();
       const amount = parseFloat(form.amount.value);
-      const payment = form.payment.value.trim();
+      const paymentAccountId = form.paymentAccountId.value;
       const note = form.note.value.trim();
 
       if (!desc || !amount || isNaN(amount) || amount <= 0) {
@@ -1250,18 +1629,26 @@
       const dd = String(today.getDate()).padStart(2, "0");
       const dateStr = `${yyyy}-${mm}-${dd}`;
 
+      let paymentLabel = "현금/기타";
+      if (paymentAccountId) {
+        const acc = findAccountById(paymentAccountId);
+        if (acc) paymentLabel = acc.name;
+      }
+
       let entry = {
         id: `fixed-${Date.now()}-${Math.random().toString(16).slice(2)}`,
         date: dateStr,
         type: "fixed",
         desc,
         amount,
-        payment,
+        payment: paymentLabel,
+        paymentAccountId: paymentAccountId || null,
         note,
       };
 
       entry = categorize(entry);
       entries.push(entry);
+      applyEntryToAccounts(entry, false);
       saveState();
       form.reset();
       renderAll();
@@ -1291,8 +1678,9 @@
       });
 
       saveState();
+      const keepDate = date;
       form.reset();
-      form.date.value = date;
+      form.date.value = keepDate;
       renderAll();
     });
 
@@ -1326,7 +1714,7 @@
       const fromId = form.from.value;
       const toId = form.to.value;
       const amount = parseFloat(form.amount.value);
-      const note = form.note.value.trim(); // 지금은 메모는 안 쓰지만 나중 확장용
+      const note = form.note.value.trim();
 
       if (!fromId || !toId || fromId === toId) {
         alert("from/to 계좌를 다르게 선택해주세요.");
