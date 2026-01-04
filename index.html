@@ -4,45 +4,1901 @@
   <meta charset="UTF-8" />
   <title>나만의 #가계부 대시보드</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <!-- Tailwind -->
   <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Chart.js -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body class="bg-slate-50 text-slate-900">
-<div class="max-w-6xl mx-auto p-4 md:p-6 space-y-4">
+  <div class="max-w-6xl mx-auto p-4 md:p-6 space-y-4">
+    <!-- HEADER -->
+    <header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+      <div>
+        <h1 class="text-2xl md:text-3xl font-semibold">
+          나만의 <span class="text-sky-600">#가계부</span> 대시보드
+        </h1>
+        <p class="text-xs md:text-sm text-slate-500">
+          브라우저 <code>localStorage</code>에 자동 저장 · JSON으로 백업/복원 · 지출/분석/투자/계좌를 한 번에 관리
+        </p>
+      </div>
+      <div class="flex flex-wrap gap-2 items-center">
+        <button id="btn-export" class="px-3 py-1.5 text-xs md:text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100">
+          JSON 백업 다운로드
+        </button>
+        <label class="px-3 py-1.5 text-xs md:text-sm rounded-lg border border-slate-300 text-slate-700 hover:bg-slate-100 cursor-pointer">
+          <span>JSON 불러오기</span>
+          <input id="import-file" type="file" accept="application/json" class="hidden" />
+        </label>
+        <button id="btn-reset" class="px-3 py-1.5 text-xs md:text-sm rounded-lg bg-rose-500 text-white hover:bg-rose-400">
+          전체 초기화 (시드데이터)
+        </button>
+      </div>
+    </header>
 
-<!-- ================= HEADER ================= -->
-<header class="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-  <div>
-    <h1 class="text-2xl md:text-3xl font-semibold">
-      나만의 <span class="text-sky-600">#가계부</span> 대시보드
-    </h1>
-    <p class="text-xs md:text-sm text-slate-500">
-      localStorage 자동 저장 · JSON 백업/복원
-    </p>
+    <!-- NAV TABS -->
+    <nav class="flex flex-wrap gap-2 text-sm border-b border-slate-200 pb-1">
+      <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-sky-500 text-sky-600 font-medium"
+              data-tab="ledger">
+        지출
+      </button>
+      <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-transparent text-slate-500 hover:text-slate-700"
+              data-tab="analysis">
+        분석 대시보드
+      </button>
+      <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-transparent text-slate-500 hover:text-slate-700"
+              data-tab="fixed">
+        고정비
+      </button>
+      <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-transparent text-slate-500 hover:text-slate-700"
+              data-tab="invest">
+        투자/주식
+      </button>
+      <button class="tab-btn px-3 py-2 rounded-t-md border-b-2 border-transparent text-slate-500 hover:text-slate-700"
+              data-tab="accounts">
+        계좌/카드
+      </button>
+    </nav>
+
+    <!-- =============== TAB: 지출(변동비/고정비/수입 입력) =============== -->
+    <section class="tab-panel" data-tab-panel="ledger">
+      <!-- 필터 / 타입 선택 -->
+      <section class="mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">시작일</label>
+          <input id="filter-start" type="date"
+                 class="border rounded-md px-2 py-1.5 text-sm" value="2025-11-01" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">종료일</label>
+          <input id="filter-end" type="date"
+                 class="border rounded-md px-2 py-1.5 text-sm" value="2025-11-30" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">보기 유형</label>
+          <select id="filter-type" class="border rounded-md px-2 py-1.5 text-sm">
+            <option value="all">전체</option>
+            <option value="variable">변동비만</option>
+            <option value="fixed">고정비만</option>
+            <option value="income">수입만</option>
+          </select>
+        </div>
+        <button id="btn-filter"
+                class="px-3 py-1.5 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-400">
+          필터 적용
+        </button>
+      </section>
+
+      <!-- 요약 카드 -->
+      <section class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">지출 합계 (변동+고정)</div>
+          <div id="sum-expense" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">수입 합계</div>
+          <div id="sum-income" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">순캐시플로우</div>
+          <div id="sum-net" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">거래 건수</div>
+          <div id="sum-count" class="text-2xl font-semibold">-</div>
+        </div>
+      </section>
+
+      <!-- 카테고리 요약 & 차트 -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h2 class="text-sm font-semibold mb-2">카테고리별 지출 (표)</h2>
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-100 text-slate-700">
+                <tr>
+                  <th class="px-3 py-2 text-left">카테고리</th>
+                  <th class="px-3 py-2 text-right">금액</th>
+                </tr>
+              </thead>
+              <tbody id="cat-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h2 class="text-sm font-semibold mb-2">카테고리별 지출 (차트)</h2>
+          <canvas id="ledgerCatChart" class="w-full h-52"></canvas>
+        </div>
+      </section>
+
+      <!-- 지출 입력 폼 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <h2 class="text-sm font-semibold mb-2">새 거래 입력</h2>
+        <form id="entry-form" class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">날짜</label>
+            <input name="date" type="date" class="border rounded-md px-2 py-1.5 text-sm" required />
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">항목</label>
+            <input name="item" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="예: Panera, Walmart 등" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">금액</label>
+            <input name="amount" type="number" step="0.01"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">유형</label>
+            <select name="type" class="border rounded-md px-2 py-1.5 text-sm" required>
+              <option value="variable">변동비</option>
+              <option value="fixed">고정비</option>
+              <option value="income">수입</option>
+            </select>
+          </div> 		
+<div>
+  <label class="block text-xs text-slate-500 mb-1">카테고리</label>
+  <select name="category" class="border rounded-md px-2 py-1.5 text-sm">
+    <option value="">자동 분류</option>
+    <option value="식비/외식">식비/외식</option>
+    <option value="교통/차량">교통/차량</option>
+    <option value="쇼핑/생활">쇼핑/생활</option>
+    <option value="주거">주거</option>
+    <option value="통신비">통신비</option>
+    <option value="구독">구독</option>
+    <option value="취미/스포츠">취미/스포츠</option>
+    <option value="배송/운송">배송/운송</option>
+    <option value="기타">기타</option>
+  </select>
+</div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">결제/입금 계좌</label>
+            <select name="paymentAccountId" id="entry-account-select"
+                    class="border rounded-md px-2 py-1.5 text-sm"></select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">메모</label>
+            <input name="memo" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="간식, 충전, 월급 등" />
+          </div>
+          <div class="md:col-span-6 flex justify-end">
+            <button type="submit"
+                    class="px-3 py-1.5 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-400">
+              거래 추가
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 상세 내역 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4">
+        <h2 class="text-sm font-semibold mb-2">상세 내역 (필터 적용 범위)</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-xs md:text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-2 py-2 text-left">날짜</th>
+                <th class="px-2 py-2 text-left">항목</th>
+                <th class="px-2 py-2 text-right">금액</th>
+                <th class="px-2 py-2 text-left">유형</th>
+                <th class="px-2 py-2 text-left">카테고리</th>
+                <th class="px-2 py-2 text-left">계좌</th>
+                <th class="px-2 py-2 text-left">메모</th>
+                <th class="px-2 py-2 text-right">액션</th>
+              </tr>
+            </thead>
+            <tbody id="entry-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </section>
+
+    <!-- =============== TAB: 분석 대시보드 =============== -->
+    <section class="tab-panel hidden" data-tab-panel="analysis">
+      <!-- 기간 선택 -->
+      <section class="mb-4 flex flex-wrap gap-3 items-end">
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">분석 시작일</label>
+          <input id="analysis-start" type="date"
+                 class="border rounded-md px-2 py-1.5 text-sm" value="2025-11-01" />
+        </div>
+        <div>
+          <label class="block text-xs text-slate-500 mb-1">분석 종료일</label>
+          <input id="analysis-end" type="date"
+                 class="border rounded-md px-2 py-1.5 text-sm" value="2025-11-30" />
+        </div>
+        <button id="btn-analysis-filter"
+                class="px-3 py-1.5 text-sm rounded-lg bg-blue-500 text-white hover:bg-blue-400">
+          분석 새로고침
+        </button>
+      </section>
+
+      <!-- 전체 합계 카드 -->
+      <section class="grid grid-cols-1 md:grid-cols-4 gap-3 mb-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">변동비 합계</div>
+          <div id="analysis-sum-variable" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">고정비 합계</div>
+          <div id="analysis-sum-fixed" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">수입 합계</div>
+          <div id="analysis-sum-income" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">순캐시플로우</div>
+          <div id="analysis-sum-net" class="text-2xl font-semibold">-</div>
+        </div>
+      </section>
+
+      <!-- 월별 분석 테이블 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <div class="flex items-center justify-between mb-2">
+          <h2 class="text-sm font-semibold">월별 분석 (선택 기간)</h2>
+          <p class="text-xs text-slate-500">
+            각 달 기준으로 변동비 / 고정비 / 수입 / 순캐시플로우 / 저축률을 정리합니다.
+          </p>
+        </div>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-3 py-2 text-left">월</th>
+                <th class="px-3 py-2 text-right">변동비</th>
+                <th class="px-3 py-2 text-right">고정비</th>
+                <th class="px-3 py-2 text-right">수입</th>
+                <th class="px-3 py-2 text-right">순캐시플로우</th>
+                <th class="px-3 py-2 text-right">저축률</th>
+              </tr>
+            </thead>
+            <tbody id="analysis-month-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 차트들 -->
+      <section class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h2 class="text-sm font-semibold mb-2">월별 순캐시플로우 (차트)</h2>
+          <canvas id="analysisNetChart" class="w-full h-56"></canvas>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <h2 class="text-sm font-semibold mb-2">카테고리별 지출 (도넛 차트)</h2>
+          <canvas id="analysisCatChart" class="w-full h-56"></canvas>
+        </div>
+      </section>
+    </section>
+
+    <!-- =============== TAB: 고정비 =============== -->
+    <section class="tab-panel hidden" data-tab-panel="fixed">
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <h2 class="text-sm font-semibold mb-2">고정비 리스트 (전체 / 월 기준)</h2>
+        <div class="overflow-x-auto mb-3">
+          <table class="min-w-full text-xs md:text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-3 py-2 text-left">항목</th>
+                <th class="px-3 py-2 text-right">월 금액</th>
+                <th class="px-3 py-2 text-left">카테고리</th>
+                <th class="px-3 py-2 text-left">메모</th>
+                <th class="px-3 py-2 text-right">액션</th>
+              </tr>
+            </thead>
+            <tbody id="fixed-body"></tbody>
+          </table>
+        </div>
+
+        <!-- 고정비 추가 -->
+        <form id="fixed-form" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">항목</label>
+            <input name="name" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="예: 룸 렌트비" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">월 금액</label>
+            <input name="amount" type="number" step="0.01"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">카테고리</label>
+            <input name="category" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="주거/차량/구독 등" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">메모</label>
+            <input name="note" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="월세, 차량 할부 등" />
+          </div>
+          <div class="md:col-span-5 flex justify-end">
+            <button type="submit"
+                    class="px-3 py-1.5 text-sm rounded-lg bg-amber-500 text-white hover:bg-amber-400">
+              고정비 추가
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <section class="bg-white rounded-2xl shadow-sm p-4">
+        <h2 class="text-sm font-semibold mb-2">활성 고정비 합계</h2>
+        <p class="text-xs text-slate-500 mb-1">고정비 리스트의 월 금액 총합 (참고용)</p>
+        <div id="fixed-total" class="text-2xl font-semibold">-</div>
+      </section>
+    </section>
+
+    <!-- =============== TAB: 투자/주식 =============== -->
+    <section class="tab-panel hidden" data-tab-panel="invest">
+      <!-- 요약 카드 -->
+      <section class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">총 보유 수량</div>
+          <div id="invest-total-qty" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">총 원가 (Cost Basis)</div>
+          <div id="invest-total-cost" class="text-2xl font-semibold">-</div>
+        </div>
+        <div class="bg-white rounded-2xl shadow-sm p-4">
+          <div class="text-xs text-slate-500 mb-1">종목 수</div>
+          <div id="invest-symbol-count" class="text-2xl font-semibold">-</div>
+        </div>
+      </section>
+
+      <!-- 종목별 요약 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <h2 class="text-sm font-semibold mb-2">종목별 요약</h2>
+        <div class="overflow-x-auto">
+          <table class="min-w-full text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-3 py-2 text-left">종목</th>
+                <th class="px-3 py-2 text-right">보유수량</th>
+                <th class="px-3 py-2 text-right">평균단가</th>
+                <th class="px-3 py-2 text-right">총 원가</th>
+              </tr>
+            </thead>
+            <tbody id="invest-agg-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- 포트폴리오 비중 (차트) -->
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <h2 class="text-sm font-semibold mb-2">포트폴리오 비중 (원가 기준)</h2>
+        <p class="text-xs text-slate-500 mb-2">
+          각 종목의 비중은 <b>총 원가 대비 비율</b>로 계산합니다. (현재는 평가금액 대신 매수가 기준)
+        </p>
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="overflow-x-auto">
+            <table class="min-w-full text-sm">
+              <thead class="bg-slate-100 text-slate-700">
+                <tr>
+                  <th class="px-3 py-2 text-left">종목</th>
+                  <th class="px-3 py-2 text-right">비중</th>
+                  <th class="px-3 py-2 text-right">총 원가</th>
+                </tr>
+              </thead>
+              <tbody id="invest-alloc-body"></tbody>
+            </table>
+          </div>
+          <div>
+            <canvas id="investAllocChart" class="w-full h-56"></canvas>
+          </div>
+        </div>
+      </section>
+
+      <!-- 개별 매수 기록 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4">
+        <h2 class="text-sm font-semibold mb-2">개별 매수 기록</h2>
+        <div class="overflow-x-auto mb-3">
+          <table class="min-w-full text-xs md:text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-3 py-2 text-left">종목</th>
+                <th class="px-3 py-2 text-right">수량</th>
+                <th class="px-3 py-2 text-right">매수가</th>
+                <th class="px-3 py-2 text-left">매수일</th>
+                <th class="px-3 py-2 text-left">증권사</th>
+                <th class="px-3 py-2 text-right">액션</th>
+              </tr>
+            </thead>
+            <tbody id="invest-lot-body"></tbody>
+          </table>
+        </div>
+
+        <!-- 매수 추가 -->
+        <form id="invest-form" class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">종목</label>
+            <input name="symbol" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="예: NVDA" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">수량</label>
+            <input name="qty" type="number" step="1"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">매수가</label>
+            <input name="price" type="number" step="0.01"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">매수일</label>
+            <input name="date" type="date" class="border rounded-md px-2 py-1.5 text-sm" />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">증권사</label>
+            <input name="broker" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="예: Charles Schwab" />
+          </div>
+          <div class="md:col-span-6 flex justify-end">
+            <button type="submit"
+                    class="px-3 py-1.5 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-400">
+              매수 기록 추가
+            </button>
+          </div>
+        </form>
+      </section>
+    </section>
+
+    <!-- =============== TAB: 계좌/카드 =============== -->
+    <section class="tab-panel hidden" data-tab-panel="accounts">
+      <section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
+        <h2 class="text-sm font-semibold mb-2">계좌/카드 리스트</h2>
+        <p class="text-xs text-slate-500 mb-2">
+          카드 잔액은 <b>항상 마이너스</b>로 관리하면 빚 상태를 직관적으로 볼 수 있습니다.
+          (지출 시 더 마이너스로 내려가고, 카드값 납부 시 0 쪽으로 올라감)
+        </p>
+
+        <div class="overflow-x-auto mb-3">
+          <table class="min-w-full text-xs md:text-sm">
+            <thead class="bg-slate-100 text-slate-700">
+              <tr>
+                <th class="px-3 py-2 text-left">이름</th>
+                <th class="px-3 py-2 text-left">유형</th>
+                <th class="px-3 py-2 text-right">잔액</th>
+                <th class="px-3 py-2 text-right">액션</th>
+              </tr>
+            </thead>
+            <tbody id="acct-body"></tbody>
+          </table>
+        </div>
+
+        <!-- 계좌 추가 -->
+        <form id="acct-form" class="grid grid-cols-1 md:grid-cols-5 gap-2 items-end">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">이름</label>
+            <input name="name" type="text" class="border rounded-md px-2 py-1.5 text-sm"
+                   placeholder="예: Chase Freedom" required />
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">유형</label>
+            <select name="type" class="border rounded-md px-2 py-1.5 text-sm">
+              <option value="bank">은행</option>
+              <option value="card">카드</option>
+              <option value="brokerage">증권</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">현재 잔액</label>
+            <input name="balance" type="number" step="0.01"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" value="0" />
+          </div>
+          <div class="md:col-span-5 flex justify-end">
+            <button type="submit"
+                    class="px-3 py-1.5 text-sm rounded-lg bg-emerald-500 text-white hover:bg-emerald-400">
+              계좌/카드 추가
+            </button>
+          </div>
+        </form>
+      </section>
+
+      <!-- 계좌 요약 & 이체 -->
+      <section class="bg-white rounded-2xl shadow-sm p-4">
+        <h2 class="text-sm font-semibold mb-2">요약 & 이체 (카드값 결제 등)</h2>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-3 mb-4">
+          <div>
+            <div class="text-xs text-slate-500 mb-1">은행 잔액 합계</div>
+            <div id="acct-total-bank" class="text-xl font-semibold">-</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">카드 잔액 합계 (빚)</div>
+            <div id="acct-total-card" class="text-xl font-semibold">-</div>
+          </div>
+          <div>
+            <div class="text-xs text-slate-500 mb-1">계좌/카드 개수</div>
+            <div id="acct-count" class="text-xl font-semibold">-</div>
+          </div>
+        </div>
+
+        <form id="transfer-form" class="grid grid-cols-1 md:grid-cols-6 gap-2 items-end">
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">출금 계좌</label>
+            <select id="transfer-from" name="fromId"
+                    class="border rounded-md px-2 py-1.5 text-sm"></select>
+          </div>
+          <div class="md:col-span-2">
+            <label class="block text-xs text-slate-500 mb-1">입금 계좌</label>
+            <select id="transfer-to" name="toId"
+                    class="border rounded-md px-2 py-1.5 text-sm"></select>
+          </div>
+          <div>
+            <label class="block text-xs text-slate-500 mb-1">금액</label>
+            <input name="amount" type="number" step="0.01"
+                   class="border rounded-md px-2 py-1.5 text-sm text-right" />
+          </div>
+          <div class="md:col-span-6 flex justify-end">
+            <button type="submit"
+                    class="px-3 py-1.5 text-sm rounded-lg bg-indigo-500 text-white hover:bg-indigo-400">
+              이체 실행 (예: 카드값 결제)
+            </button>
+          </div>
+        </form>
+      </section>
+    </section>
   </div>
-</header>
 
-<!-- ================= NAV ================= -->
-<nav class="flex gap-2 text-sm border-b pb-1">
-  <button class="tab-btn border-b-2 border-sky-500 text-sky-600 font-medium px-3 py-2" data-tab="ledger">지출</button>
-  <button class="tab-btn border-b-2 border-transparent text-slate-500 px-3 py-2" data-tab="analysis">분석</button>
-  <button class="tab-btn border-b-2 border-transparent text-slate-500 px-3 py-2" data-tab="fixed">고정비</button>
-  <button class="tab-btn border-b-2 border-transparent text-slate-500 px-3 py-2" data-tab="invest">투자</button>
-  <button class="tab-btn border-b-2 border-transparent text-slate-500 px-3 py-2" data-tab="accounts">계좌</button>
-</nav>
+  <!-- ================================== SCRIPT ================================== -->
+  <script>
+    const STORAGE_KEY = "aiden_ledger_v2";
 
-<!-- ================= 지출 TAB ================= -->
-<section class="tab-panel" data-tab-panel="ledger">
+    let entries = [];
+    let fixedItems = [];
+    let investLots = [];
+    let accounts = [];
+    let editingFixedId = null;
+    let editingAccountId = null;
 
-<!-- ===== 지출 입력 ===== -->
-<section class="bg-white rounded-2xl shadow-sm p-4 mb-4">
-<h2 class="text-sm font-semibold mb-2">새 거래 입력</h2>
+    // Chart instances
+    let ledgerCatChart = null;
+    let analysisNetChart = null;
+    let analysisCatChart = null;
+    let investAllocChart = null;
 
-<form id="entry-form" class="grid grid-cols-1 md:grid-cols-7 gap-2 items-end">
+    // -------- 유틸 함수들 --------
+    function uuid() {
+      return "id-" + Math.random().toString(36).slice(2) + Date.now().toString(36);
+    }
 
-  <div>
-    <label class="block text-xs text-slate-500 mb-1">날짜</label>
-    <input name="date" type="date" class="border rounded-md px-2 py-1.5 text-sm" required />
-  </div>
+    function formatCurrency(n) {
+      return (Number(n) || 0).toLocaleString("en-US", {
+        style: "currency",
+        currency: "USD",
+        maximumFractionDigits: 2,
+      });
+    }
 
-  <div class="md:col-spa
+    function categorize(text) {
+      const t = (text || "").toLowerCase();
+      if (t.includes("tesla") || t.includes("parking") || t.includes("주차")) return "교통/차량";
+      if (
+        ["panera", "카페", "저녁", "icecream", "아이스크림", "빵", "우유", "vending", "식비"].some(
+          (k) => t.includes(k)
+        )
+      )
+        return "식비/외식";
+      if (
+        ["아마존", "amazon", "bath", "walmart", "화장품", "헤어", "running", "러닝", "비누"].some(
+          (k) => t.includes(k)
+        )
+      )
+        return "쇼핑/생활";
+      if (["kt 익스프레스", "배송", "운송"].some((k) => t.includes(k))) return "배송/운송";
+      if (t.includes("배팅") || t.includes("baseball")) return "취미/스포츠";
+      if (t.includes("렌트") || t.includes("room")) return "주거";
+      if (t.includes("at&t") || t.includes("통신")) return "통신비";
+      if (t.includes("icloud") || t.includes("chatgpt") || t.includes("netflix")) return "구독";
+      return "기타";
+    }
+
+    function findAccountById(id) {
+      return accounts.find((a) => a.id === id);
+    }
+
+    // 수입/지출/고정비가 계좌에 미치는 영향
+    function applyEntryToAccounts(entry, reverse = false) {
+      if (!entry.paymentAccountId) return;
+      const acc = findAccountById(entry.paymentAccountId);
+      if (!acc) return;
+
+      const amt = Number(entry.amount) || 0;
+      if (!amt) return;
+      const mult = reverse ? -1 : 1;
+
+      if (entry.type === "income") {
+        if (acc.type === "bank" || acc.type === "brokerage") {
+          acc.balance += mult * amt;
+        } else if (acc.type === "card") {
+          // 카드에 수입이 들어오면 빚 감소 → 0쪽으로
+          acc.balance += mult * amt;
+        }
+      } else if (entry.type === "variable" || entry.type === "fixed") {
+        if (acc.type === "bank" || acc.type === "brokerage") {
+          acc.balance -= mult * amt;
+        } else if (acc.type === "card") {
+          // 지출 → 카드 빚 증가 (더 마이너스)
+          acc.balance -= mult * amt;
+        }
+      }
+    }
+
+    // -------- 시드 데이터 초기화 --------
+    function initSeeds() {
+      // 계좌/카드 시드
+      accounts = [
+        { id: uuid(), name: "Chase Freedom", type: "card", balance: 0 },
+        { id: uuid(), name: "Chase United", type: "card", balance: 0 },
+        { id: uuid(), name: "Discover", type: "card", balance: 0 },
+        { id: uuid(), name: "Apple Card", type: "card", balance: 0 },
+        { id: uuid(), name: "Bank of America", type: "bank", balance: 0 },
+        { id: uuid(), name: "Chase Checking", type: "bank", balance: 0 },
+        { id: uuid(), name: "Charles Schwab", type: "brokerage", balance: 0 },
+      ];
+
+      function accIdByName(name) {
+        const a = accounts.find((x) => x.name === name);
+        return a ? a.id : null;
+      }
+
+      // 지출/수입 시드
+      const seedEntries = [
+        // 10월 말 룸 렌트
+        {
+          date: "2025-10-29",
+          item: "룸 렌트비",
+          amount: 1100,
+          type: "fixed",
+          paymentName: "Bank of America",
+          memo: "룸 렌트비 고정비",
+        },
+        // 11월 Tesla 충전
+        {
+          date: "2025-11-01",
+          item: "Tesla 슈퍼차져",
+          amount: 6.2,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "충전",
+        },
+        {
+          date: "2025-11-02",
+          item: "Tesla 슈퍼차져",
+          amount: 13.02,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "충전",
+        },
+        {
+          date: "2025-11-03",
+          item: "Bath and Body Works",
+          amount: 9.64,
+          type: "variable",
+          paymentName: "Chase United",
+          memo: "비누 샀어",
+        },
+        {
+          date: "2025-11-03",
+          item: "Walmart",
+          amount: 47.5,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "닭가슴살, 계란, 프로틴 요거트, 사과 비누",
+        },
+        {
+          date: "2025-11-06",
+          item: "Vending machine",
+          amount: 3.75,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "간식",
+        },
+        {
+          date: "2025-11-06",
+          item: "아마존 화장품",
+          amount: 38.85,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "화장품",
+        },
+        {
+          date: "2025-11-07",
+          item: "저녁",
+          amount: 201.58,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "저녁 식사",
+        },
+        {
+          date: "2025-11-07",
+          item: "배팅 그립",
+          amount: 15.2,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "야구",
+        },
+        {
+          date: "2025-11-07",
+          item: "KT 익스프레스",
+          amount: 25.0,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "택배/운송",
+        },
+        {
+          date: "2025-11-08",
+          item: "빵",
+          amount: 9.67,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "빵",
+        },
+        {
+          date: "2025-11-08",
+          item: "우유",
+          amount: 3.59,
+          type: "variable",
+          paymentName: "Chase United",
+          memo: "우유",
+        },
+        {
+          date: "2025-11-08",
+          item: "카페",
+          amount: 33.5,
+          type: "variable",
+          paymentName: "Chase United",
+          memo: "카페",
+        },
+        {
+          date: "2025-11-08",
+          item: "Tesla 슈퍼차져",
+          amount: 6.79,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "충전",
+        },
+        {
+          date: "2025-11-09",
+          item: "Icecream",
+          amount: 13.9,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "아이스크림",
+        },
+        {
+          date: "2025-11-09",
+          item: "Beach parking",
+          amount: 6.25,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "주차",
+        },
+        {
+          date: "2025-11-09",
+          item: "아마존 러닝 가방",
+          amount: 29.34,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "러닝 가방",
+        },
+        {
+          date: "2025-11-09",
+          item: "Tesla 슈퍼차져",
+          amount: 20.85,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "충전",
+        },
+        {
+          date: "2025-11-10",
+          item: "Panera",
+          amount: 10.32,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "아침 panera",
+        },
+        {
+          date: "2025-11-10",
+          item: "Oreo 과자",
+          amount: 1.75,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "과자",
+        },
+        {
+          date: "2025-11-10",
+          item: "저녁(stater bros)",
+          amount: 14.43,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "저녁",
+        },
+        {
+          date: "2025-11-10",
+          item: "Vending machine",
+          amount: 4.74,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "간식",
+        },
+        {
+          date: "2025-11-11",
+          item: "Chick-fil-A",
+          amount: 17.22,
+          type: "variable",
+          paymentName: "Chase Freedom",
+          memo: "식비",
+        },
+        {
+          date: "2025-11-12",
+          item: "아마존 헤어제품",
+          amount: 42.48,
+          type: "variable",
+          paymentName: "Discover",
+          memo: "헤어 제품",
+        },
+        {
+          date: "2025-11-13",
+          item: "AT&T",
+          amount: 29.48,
+          type: "fixed",
+          paymentName: "Chase Checking",
+          memo: "통신비 고정비",
+        },
+        {
+          date: "2025-11-14",
+          item: "급여",
+          amount: 1589.5,
+          type: "income",
+          paymentName: "Chase Checking",
+          memo: "급여",
+        },
+      ];
+
+      entries = seedEntries.map((e) => {
+        const text = `${e.item} ${e.memo || ""}`;
+        return {
+          id: uuid(),
+          date: e.date,
+          item: e.item,
+          amount: Number(e.amount) || 0,
+          type: e.type,
+          category: categorize(text),
+          paymentAccountId: accIdByName(e.paymentName),
+          memo: e.memo || "",
+        };
+      });
+
+      // 고정비 시드
+      fixedItems = [
+        { id: uuid(), name: "룸 렌트비", amount: 1100, category: "주거", note: "월세" },
+        { id: uuid(), name: "차량 할부", amount: 586.86, category: "교통/차량", note: "차량 할부" },
+        { id: uuid(), name: "Tesla 충전(월 평균)", amount: 110, category: "교통/차량", note: "월 평균" },
+        { id: uuid(), name: "iCloud 구독", amount: 10, category: "구독/서비스", note: "" },
+        { id: uuid(), name: "ChatGPT 구독", amount: 20, category: "구독/서비스", note: "" },
+        { id: uuid(), name: "FSD 구독", amount: 100, category: "교통/차량", note: "Tesla FSD" },
+        { id: uuid(), name: "점심(고정비)", amount: 285, category: "식비/외식", note: "평일 점심 고정" },
+        { id: uuid(), name: "AT&T", amount: 29.48, category: "통신비", note: "휴대폰 요금" },
+      ];
+
+      // 투자 시드
+      investLots = [
+        { id: uuid(), symbol: "NVDA", qty: 2, price: 384, date: "2025-11-01", broker: "Charles Schwab" },
+        { id: uuid(), symbol: "TSLA", qty: 1, price: 465.21, date: "2025-11-01", broker: "Charles Schwab" },
+        { id: uuid(), symbol: "TSLA", qty: 1, price: 419.82, date: "2025-11-01", broker: "Charles Schwab" },
+        { id: uuid(), symbol: "SPYG", qty: 1, price: 107.71, date: "2025-11-01", broker: "Charles Schwab" },
+      ];
+
+      // 시드 엔트리를 계좌 잔액에 반영
+      entries.forEach((e) => applyEntryToAccounts(e, false));
+    }
+
+    function loadState() {
+      const raw = window.localStorage.getItem(STORAGE_KEY);
+      if (!raw) {
+        initSeeds();
+        saveState();
+        return;
+      }
+      try {
+        const parsed = JSON.parse(raw);
+        entries = parsed.entries || [];
+        fixedItems = parsed.fixedItems || [];
+        investLots = parsed.investLots || [];
+        accounts = parsed.accounts || [];
+      } catch (e) {
+        console.error("loadState error, fallback to seed", e);
+        initSeeds();
+      }
+    }
+
+    function saveState() {
+      const data = { entries, fixedItems, investLots, accounts };
+      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    }
+
+    // -------- TAB UI --------
+    function setupTabs() {
+      const tabButtons = document.querySelectorAll(".tab-btn");
+      const tabPanels = document.querySelectorAll(".tab-panel");
+      tabButtons.forEach((btn) => {
+        btn.addEventListener("click", () => {
+          const target = btn.dataset.tab;
+          tabButtons.forEach((b) => {
+            b.classList.remove("border-sky-500", "text-sky-600", "font-medium");
+            b.classList.add("border-transparent", "text-slate-500");
+          });
+          btn.classList.add("border-sky-500", "text-sky-600", "font-medium");
+          btn.classList.remove("border-transparent", "text-slate-500");
+
+          tabPanels.forEach((p) => {
+            if (p.dataset.tabPanel === target) p.classList.remove("hidden");
+            else p.classList.add("hidden");
+          });
+        });
+      });
+    }
+
+    // -------- 지출 탭 렌더링 --------
+    function renderLedger() {
+      const startStr = document.getElementById("filter-start").value || "1900-01-01";
+      const endStr = document.getElementById("filter-end").value || "2100-12-31";
+      const typeFilter = document.getElementById("filter-type").value || "all";
+
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+
+      const filtered = entries.filter((e) => {
+        const d = new Date(e.date);
+        if (d < start || d > end) return false;
+        if (typeFilter !== "all" && e.type !== typeFilter) return false;
+        return true;
+      });
+
+      let sumVar = 0,
+        sumFix = 0,
+        sumIncome = 0;
+      const catMap = new Map();
+
+      filtered.forEach((e) => {
+        const amt = Number(e.amount) || 0;
+        if (e.type === "variable") sumVar += amt;
+        if (e.type === "fixed") sumFix += amt;
+        if (e.type === "income") sumIncome += amt;
+
+        // 카테고리는 지출만
+        if (e.type === "variable" || e.type === "fixed") {
+          const key = e.category || "기타";
+          catMap.set(key, (catMap.get(key) || 0) + amt);
+        }
+      });
+
+      const totalExpense = sumVar + sumFix;
+      document.getElementById("sum-expense").textContent = formatCurrency(totalExpense);
+      document.getElementById("sum-income").textContent = formatCurrency(sumIncome);
+      document.getElementById("sum-net").textContent = formatCurrency(sumIncome - totalExpense);
+      document.getElementById("sum-count").textContent = filtered.length;
+
+      // 카테고리 표
+      const catBody = document.getElementById("cat-body");
+      catBody.innerHTML = "";
+      const catEntries = Array.from(catMap.entries()).sort((a, b) => b[1] - a[1]);
+      catEntries.forEach(([cat, amt]) => {
+        const tr = document.createElement("tr");
+        tr.className = "border-t";
+        tr.innerHTML = `
+          <td class="px-3 py-1.5 whitespace-nowrap">${cat}</td>
+          <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(amt)}</td>
+        `;
+        catBody.appendChild(tr);
+      });
+      if (catEntries.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="2">지출 데이터가 없습니다.</td>';
+        catBody.appendChild(tr);
+      }
+
+      // 카테고리 차트 (막대)
+      const labels = catEntries.map((x) => x[0]);
+      const data = catEntries.map((x) => x[1]);
+      const ctx = document.getElementById("ledgerCatChart").getContext("2d");
+      if (!ledgerCatChart) {
+        ledgerCatChart = new Chart(ctx, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "지출",
+                data,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+            scales: {
+              x: { ticks: { font: { size: 11 } } },
+              y: { ticks: { font: { size: 11 } } },
+            },
+          },
+        });
+      } else {
+        ledgerCatChart.data.labels = labels;
+        ledgerCatChart.data.datasets[0].data = data;
+        ledgerCatChart.update();
+      }
+
+      // 상세 내역
+      const tbody = document.getElementById("entry-body");
+      tbody.innerHTML = "";
+      const sorted = filtered.slice().sort((a, b) => (a.date > b.date ? 1 : -1));
+      sorted.forEach((e) => {
+        const acc = e.paymentAccountId ? findAccountById(e.paymentAccountId) : null;
+        const tr = document.createElement("tr");
+        tr.className = "border-t";
+        const typeLabel =
+          e.type === "variable" ? "변동비" : e.type === "fixed" ? "고정비" : "수입";
+        tr.innerHTML = `
+          <td class="px-2 py-1.5 whitespace-nowrap">${e.date}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${e.item}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+            e.amount
+          )}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${typeLabel}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${e.category || ""}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${acc ? acc.name : ""}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap">${e.memo || ""}</td>
+          <td class="px-2 py-1.5 whitespace-nowrap text-right">
+            <button
+               class="btn-entry-delete px-2 py-1 text-[11px] md:text-xs rounded-md border border-rose-300 text-rose-600 hover:bg-rose-50"
+data-id="${e.id}"
+      >
+        삭제
+      </button>
+    </td>
+        `;
+        tbody.appendChild(tr);
+      });
+      if (sorted.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="8">해당 조건의 데이터가 없습니다.</td>';
+        tbody.appendChild(tr);
+      }
+  // ------ 삭제 버튼 핸들러 ------
+  document.querySelectorAll(".btn-entry-delete").forEach((btn) => {
+    btn.onclick = () => {
+      const id = btn.dataset.id;
+      const entry = entries.find((e) => e.id === id);
+      if (!entry) return;
+
+      if (!confirm("이 거래를 삭제하시겠습니까?")) return;
+
+      // 계좌 잔액 영향 되돌리기
+      applyEntryToAccounts(entry, true);
+
+      // 엔트리 삭제
+      entries = entries.filter((e) => e.id !== id);
+
+      // 저장 + 전체 재렌더링
+      saveState();
+      renderAll();
+    };
+  });
+
+    }
+
+    // -------- 분석 대시보드 렌더링 --------
+    function renderAnalysis() {
+      const startStr = document.getElementById("analysis-start").value || "1900-01-01";
+      const endStr = document.getElementById("analysis-end").value || "2100-12-31";
+      const start = new Date(startStr);
+      const end = new Date(endStr);
+
+      const inRange = entries.filter((e) => {
+        const d = new Date(e.date);
+        return d >= start && d <= end;
+      });
+
+      let sumVar = 0,
+        sumFix = 0,
+        sumIncome = 0;
+      const monthMap = {};
+      const catMap = {};
+
+      function monthKey(dateStr) {
+        if (!dateStr) return "기타";
+        return dateStr.slice(0, 7);
+      }
+
+      inRange.forEach((e) => {
+        const amt = Number(e.amount) || 0;
+        const key = monthKey(e.date);
+        if (!monthMap[key]) monthMap[key] = { variable: 0, fixed: 0, income: 0 };
+
+        if (e.type === "variable") {
+          monthMap[key].variable += amt;
+          sumVar += amt;
+        } else if (e.type === "fixed") {
+          monthMap[key].fixed += amt;
+          sumFix += amt;
+        } else if (e.type === "income") {
+          monthMap[key].income += amt;
+          sumIncome += amt;
+        }
+
+        if (e.type === "variable" || e.type === "fixed") {
+          const cat = e.category || "기타";
+          catMap[cat] = (catMap[cat] || 0) + amt;
+        }
+      });
+
+      document.getElementById("analysis-sum-variable").textContent = formatCurrency(sumVar);
+      document.getElementById("analysis-sum-fixed").textContent = formatCurrency(sumFix);
+      document.getElementById("analysis-sum-income").textContent = formatCurrency(sumIncome);
+      document.getElementById("analysis-sum-net").textContent = formatCurrency(
+        sumIncome - sumVar - sumFix
+      );
+
+      const monthBody = document.getElementById("analysis-month-body");
+      monthBody.innerHTML = "";
+
+      const keys = Object.keys(monthMap).sort();
+      const labels = [];
+      const netData = [];
+
+      if (keys.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="6">해당 기간에 데이터가 없습니다.</td>';
+        monthBody.appendChild(tr);
+      } else {
+        keys.forEach((k) => {
+          const m = monthMap[k];
+          const net = m.income - m.variable - m.fixed;
+          const savingRate =
+            m.income > 0 ? ((net / m.income) * 100).toFixed(1) + "%" : "-";
+
+          const tr = document.createElement("tr");
+          tr.className = "border-t";
+          tr.innerHTML = `
+            <td class="px-3 py-1.5 whitespace-nowrap">${k}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              m.variable
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              m.fixed
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              m.income
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              net
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${savingRate}</td>
+          `;
+          monthBody.appendChild(tr);
+
+          labels.push(k);
+          netData.push(net);
+        });
+      }
+
+      // 순캐시플로우 차트
+      const netCtx = document.getElementById("analysisNetChart").getContext("2d");
+      if (!analysisNetChart) {
+        analysisNetChart = new Chart(netCtx, {
+          type: "bar",
+          data: {
+            labels,
+            datasets: [
+              {
+                label: "순캐시플로우",
+                data: netData,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { display: false } },
+          },
+        });
+      } else {
+        analysisNetChart.data.labels = labels;
+        analysisNetChart.data.datasets[0].data = netData;
+        analysisNetChart.update();
+      }
+
+      // 카테고리 도넛 차트
+      const catLabels = Object.keys(catMap);
+      const catValues = catLabels.map((k) => catMap[k]);
+      const catCtx = document.getElementById("analysisCatChart").getContext("2d");
+      if (!analysisCatChart) {
+        analysisCatChart = new Chart(catCtx, {
+          type: "doughnut",
+          data: {
+            labels: catLabels,
+            datasets: [
+              {
+                data: catValues,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: {
+              legend: { position: "bottom" },
+            },
+          },
+        });
+      } else {
+        analysisCatChart.data.labels = catLabels;
+        analysisCatChart.data.datasets[0].data = catValues;
+        analysisCatChart.update();
+      }
+    }
+
+    // -------- 고정비 탭 --------
+    function renderFixedTab() {
+      const tbody = document.getElementById("fixed-body");
+      tbody.innerHTML = "";
+      let total = 0;
+
+      fixedItems.forEach((f) => {
+        total += Number(f.amount) || 0;
+        const isEditing = editingFixedId === f.id;
+        const tr = document.createElement("tr");
+        tr.className = "border-t";
+
+        if (!isEditing) {
+          tr.innerHTML = `
+            <td class="px-3 py-1.5 whitespace-nowrap">${f.name}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              f.amount
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap">${f.category || ""}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap">${f.note || ""}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">
+              <button data-id="${
+                f.id
+              }" class="btn-fixed-edit px-2 py-1 text-[11px] md:text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50">
+                수정
+              </button>
+              <button data-id="${
+                f.id
+              }" class="btn-fixed-delete px-2 py-1 text-[11px] md:text-xs rounded-md border border-rose-300 text-rose-600 hover:bg-rose-50">
+                삭제
+              </button>
+            </td>
+          `;
+        } else {
+          tr.innerHTML = `
+            <td class="px-3 py-1.5 whitespace-nowrap">
+              <input data-field="name" data-id="${
+                f.id
+              }" class="fixed-input border rounded-md px-2 py-1 text-xs md:text-sm w-full" value="${
+            f.name
+          }" />
+            </td>
+            <td class="px-3 py-1.5 whitespace-nowrap">
+              <input data-field="amount" data-id="${
+                f.id
+              }" type="number" step="0.01" class="fixed-input border rounded-md px-2 py-1 text-xs md:text-sm w-full text-right" value="${
+            f.amount
+          }" />
+            </td>
+            <td class="px-3 py-1.5 whitespace-nowrap">
+              <input data-field="category" data-id="${
+                f.id
+              }" class="fixed-input border rounded-md px-2 py-1 text-xs md:text-sm w-full" value="${
+            f.category || ""
+          }" />
+            </td>
+            <td class="px-3 py-1.5 whitespace-nowrap">
+              <input data-field="note" data-id="${
+                f.id
+              }" class="fixed-input border rounded-md px-2 py-1 text-xs md:text-sm w-full" value="${
+            f.note || ""
+          }" />
+            </td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">
+              <button data-id="${
+                f.id
+              }" class="btn-fixed-save px-2 py-1 text-[11px] md:text-xs rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                저장
+              </button>
+              <button data-id="${
+                f.id
+              }" class="btn-fixed-cancel px-2 py-1 text-[11px] md:text-xs rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50">
+                취소
+              </button>
+            </td>
+          `;
+        }
+
+        tbody.appendChild(tr);
+      });
+
+      if (fixedItems.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="5">등록된 고정비가 없습니다.</td>';
+        tbody.appendChild(tr);
+      }
+
+      document.getElementById("fixed-total").textContent = formatCurrency(total);
+
+      // 이벤트 바인딩
+      document.querySelectorAll(".btn-fixed-edit").forEach((btn) => {
+        btn.onclick = () => {
+          editingFixedId = btn.dataset.id;
+          renderFixedTab();
+        };
+      });
+      document.querySelectorAll(".btn-fixed-cancel").forEach((btn) => {
+        btn.onclick = () => {
+          editingFixedId = null;
+          renderFixedTab();
+        };
+      });
+      document.querySelectorAll(".btn-fixed-save").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          const inputs = document.querySelectorAll(`.fixed-input[data-id="${id}"]`);
+          const obj = fixedItems.find((f) => f.id === id);
+          if (!obj) return;
+          inputs.forEach((inp) => {
+            const field = inp.dataset.field;
+            if (field === "amount") obj[field] = parseFloat(inp.value) || 0;
+            else obj[field] = inp.value;
+          });
+          editingFixedId = null;
+          saveState();
+          renderAll();
+        };
+      });
+      document.querySelectorAll(".btn-fixed-delete").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          if (!confirm("이 고정비 항목을 삭제할까요?")) return;
+          fixedItems = fixedItems.filter((f) => f.id !== id);
+          saveState();
+          renderAll();
+        };
+      });
+    }
+
+    // -------- 투자 탭 렌더링 --------
+    function renderInvest() {
+      const totalQty = investLots.reduce((s, x) => s + (Number(x.qty) || 0), 0);
+      const totalCost = investLots.reduce(
+        (s, x) => s + (Number(x.qty) || 0) * (Number(x.price) || 0),
+        0
+      );
+      document.getElementById("invest-total-qty").textContent = totalQty;
+      document.getElementById("invest-total-cost").textContent = formatCurrency(totalCost);
+
+      // 종목별 집계
+      const map = new Map();
+      investLots.forEach((lot) => {
+        const sym = String(lot.symbol || "").toUpperCase();
+        const q = Number(lot.qty) || 0;
+        const p = Number(lot.price) || 0;
+        if (!map.has(sym)) map.set(sym, { symbol: sym, qty: 0, cost: 0 });
+        const obj = map.get(sym);
+        obj.qty += q;
+        obj.cost += q * p;
+      });
+      const agg = Array.from(map.values()).map((x) => ({
+        ...x,
+        avgCost: x.qty ? x.cost / x.qty : 0,
+      }));
+      document.getElementById("invest-symbol-count").textContent = agg.length;
+
+      // 종목별 요약 표
+      const aggBody = document.getElementById("invest-agg-body");
+      aggBody.innerHTML = "";
+      agg
+        .slice()
+        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+        .forEach((r) => {
+          const tr = document.createElement("tr");
+          tr.className = "border-t";
+          tr.innerHTML = `
+            <td class="px-3 py-1.5 whitespace-nowrap">${r.symbol}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${r.qty}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              r.avgCost
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              r.cost
+            )}</td>
+          `;
+          aggBody.appendChild(tr);
+        });
+      if (agg.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="4">투자 데이터가 없습니다.</td>';
+        aggBody.appendChild(tr);
+      }
+
+      // 포트폴리오 비중 표 + 차트
+      const allocBody = document.getElementById("invest-alloc-body");
+      allocBody.innerHTML = "";
+      const labels = [];
+      const values = [];
+
+      if (!totalCost || agg.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="3">투자 데이터가 없습니다.</td>';
+        allocBody.appendChild(tr);
+      } else {
+        agg
+          .slice()
+          .sort((a, b) => b.cost - a.cost)
+          .forEach((r) => {
+            const weight = (r.cost / totalCost) * 100;
+            labels.push(r.symbol);
+            values.push(weight);
+
+            const tr = document.createElement("tr");
+            tr.className = "border-t";
+            tr.innerHTML = `
+              <td class="px-3 py-1.5 whitespace-nowrap">${r.symbol}</td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-right">${weight.toFixed(
+                1
+              )}%</td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+                r.cost
+              )}</td>
+            `;
+            allocBody.appendChild(tr);
+          });
+      }
+
+      const allocCtx = document.getElementById("investAllocChart").getContext("2d");
+      if (!investAllocChart) {
+        investAllocChart = new Chart(allocCtx, {
+          type: "doughnut",
+          data: {
+            labels,
+            datasets: [
+              {
+                data: values,
+              },
+            ],
+          },
+          options: {
+            responsive: true,
+            plugins: { legend: { position: "bottom" } },
+          },
+        });
+      } else {
+        investAllocChart.data.labels = labels;
+        investAllocChart.data.datasets[0].data = values;
+        investAllocChart.update();
+      }
+
+      // 개별 매수 기록
+      const lotBody = document.getElementById("invest-lot-body");
+      lotBody.innerHTML = "";
+      investLots
+        .slice()
+        .sort((a, b) => a.symbol.localeCompare(b.symbol))
+        .forEach((lot) => {
+          const tr = document.createElement("tr");
+          tr.className = "border-t";
+          tr.innerHTML = `
+            <td class="px-3 py-1.5 whitespace-nowrap">${lot.symbol}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${lot.qty}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">${formatCurrency(
+              lot.price
+            )}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap">${lot.date || ""}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap">${lot.broker || ""}</td>
+            <td class="px-3 py-1.5 whitespace-nowrap text-right">
+              <button data-id="${
+                lot.id
+              }" class="btn-invest-delete px-2 py-1 text-[11px] md:text-xs rounded-md border border-rose-300 text-rose-600 hover:bg-rose-50">
+                삭제
+              </button>
+            </td>
+          `;
+          lotBody.appendChild(tr);
+        });
+      if (investLots.length === 0) {
+        const tr = document.createElement("tr");
+        tr.innerHTML =
+          '<td class="px-3 py-2 text-xs text-slate-400" colspan="6">등록된 매수 기록이 없습니다.</td>';
+        lotBody.appendChild(tr);
+      }
+
+      document.querySelectorAll(".btn-invest-delete").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          if (!confirm("이 매수 기록을 삭제할까요?")) return;
+          investLots = investLots.filter((x) => x.id !== id);
+          saveState();
+          renderAll();
+        };
+      });
+    }
+
+    // -------- 계좌/카드 탭 --------
+    function renderAccounts() {
+      const totalBank = accounts
+        .filter((a) => a.type === "bank")
+        .reduce((s, a) => s + (Number(a.balance) || 0), 0);
+      const totalCard = accounts
+        .filter((a) => a.type === "card")
+        .reduce((s, a) => s + (Number(a.balance) || 0), 0);
+      document.getElementById("acct-total-bank").textContent = formatCurrency(totalBank);
+      document.getElementById("acct-total-card").textContent = formatCurrency(totalCard);
+      document.getElementById("acct-count").textContent = accounts.length;
+
+      const acctBody = document.getElementById("acct-body");
+      acctBody.innerHTML = "";
+
+      accounts
+        .slice()
+        .sort((a, b) => a.name.localeCompare(b.name))
+        .forEach((a) => {
+          const isEditing = editingAccountId === a.id;
+          let typeLabel, typeBadge;
+          if (a.type === "bank") {
+            typeLabel = "은행";
+            typeBadge = "bg-emerald-100 text-emerald-800";
+          } else if (a.type === "card") {
+            typeLabel = "카드";
+            typeBadge = "bg-sky-100 text-sky-800";
+          } else {
+            typeLabel = "증권";
+            typeBadge = "bg-purple-100 text-purple-800";
+          }
+
+          const tr = document.createElement("tr");
+          tr.className = "border-t";
+
+          if (!isEditing) {
+            tr.innerHTML = `
+              <td class="px-3 py-1.5 whitespace-nowrap text-xs md:text-sm">${a.name}</td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-xs md:text-sm">
+                <span class="inline-flex px-2 py-0.5 rounded-full text-[11px] ${typeBadge}">
+                  ${typeLabel}
+                </span>
+              </td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-right text-xs md:text-sm">
+                ${formatCurrency(a.balance || 0)}
+              </td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-right">
+                <button data-id="${
+                  a.id
+                }" class="btn-acct-edit px-2 py-1 text-[11px] md:text-xs rounded-md border border-slate-300 text-slate-700 hover:bg-slate-50">
+                  수정
+                </button>
+                <button data-id="${
+                  a.id
+                }" class="btn-acct-delete px-2 py-1 text-[11px] md:text-xs rounded-md border border-rose-300 text-rose-600 hover:bg-rose-50">
+                  삭제
+                </button>
+              </td>
+            `;
+          } else {
+            tr.innerHTML = `
+              <td class="px-3 py-1.5 whitespace-nowrap text-xs md:text-sm">
+                <input data-id="${a.id}" data-field="name"
+                       class="acct-input border rounded-md px-2 py-1 text-xs md:text-sm w-full"
+                       value="${a.name}" />
+              </td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-xs md:text-sm">
+                <select data-id="${a.id}" data-field="type"
+                        class="acct-input border rounded-md px-2 py-1 text-xs md:text-sm w-full">
+                  <option value="bank" ${a.type === "bank" ? "selected" : ""}>은행</option>
+                  <option value="card" ${a.type === "card" ? "selected" : ""}>카드</option>
+                  <option value="brokerage" ${a.type === "brokerage" ? "selected" : ""}>증권</option>
+                </select>
+              </td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-xs md:text-sm">
+                <input data-id="${a.id}" data-field="balance" type="number" step="0.01"
+                       class="acct-input border rounded-md px-2 py-1 text-xs md:text-sm w-full text-right"
+                       value="${a.balance || 0}" />
+              </td>
+              <td class="px-3 py-1.5 whitespace-nowrap text-right">
+                <button data-id="${
+                  a.id
+                }" class="btn-acct-save px-2 py-1 text-[11px] md:text-xs rounded-md border border-emerald-300 text-emerald-700 hover:bg-emerald-50">
+                  저장
+                </button>
+                <button data-id="${
+                  a.id
+                }" class="btn-acct-cancel px-2 py-1 text-[11px] md:text-xs rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50">
+                  취소
+                </button>
+              </td>
+            `;
+          }
+
+          acctBody.appendChild(tr);
+        });
+
+      // 버튼 핸들러
+      document.querySelectorAll(".btn-acct-edit").forEach((btn) => {
+        btn.onclick = () => {
+          editingAccountId = btn.dataset.id;
+          renderAccounts();
+        };
+      });
+      document.querySelectorAll(".btn-acct-cancel").forEach((btn) => {
+        btn.onclick = () => {
+          editingAccountId = null;
+          renderAccounts();
+        };
+      });
+      document.querySelectorAll(".btn-acct-save").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          const acc = accounts.find((a) => a.id === id);
+          if (!acc) return;
+          const inputs = document.querySelectorAll(`.acct-input[data-id="${id}"]`);
+          const tmp = {};
+          inputs.forEach((inp) => {
+            const field = inp.dataset.field;
+            tmp[field] = inp.value;
+          });
+          const newName = (tmp.name || "").trim();
+          const newType = tmp.type || acc.type;
+          const newBal = parseFloat(tmp.balance);
+          if (!newName) return alert("이름은 필수입니다.");
+          if (isNaN(newBal)) return alert("잔액이 올바르지 않습니다.");
+
+          acc.name = newName;
+          acc.type = newType;
+          acc.balance = newBal;
+          editingAccountId = null;
+          saveState();
+          renderAll();
+        };
+      });
+      document.querySelectorAll(".btn-acct-delete").forEach((btn) => {
+        btn.onclick = () => {
+          const id = btn.dataset.id;
+          if (!confirm("이 계좌/카드를 삭제할까요? (잔액 정보도 사라짐)")) return;
+          accounts = accounts.filter((a) => a.id !== id);
+          if (editingAccountId === id) editingAccountId = null;
+          saveState();
+          renderAll();
+        };
+      });
+
+      // 이체 select 옵션 업데이트
+      const fromSel = document.getElementById("transfer-from");
+      const toSel = document.getElementById("transfer-to");
+      fromSel.innerHTML = "";
+      toSel.innerHTML = "";
+      accounts.forEach((a) => {
+        const label = `${a.name} (${
+          a.type === "bank" ? "은행" : a.type === "card" ? "카드" : "증권"
+        })`;
+        const opt1 = document.createElement("option");
+        opt1.value = a.id;
+        opt1.textContent = label;
+        const opt2 = opt1.cloneNode(true);
+        fromSel.appendChild(opt1);
+        toSel.appendChild(opt2);
+      });
+    }
+
+    // 지출 입력 폼 계좌 목록
+    function updatePaymentOptions() {
+      const sel = document.getElementById("entry-account-select");
+      sel.innerHTML = "";
+      accounts.forEach((a) => {
+        const opt = document.createElement("option");
+        opt.value = a.id;
+        opt.textContent = `${a.name} (${
+          a.type === "bank" ? "은행" : a.type === "card" ? "카드" : "증권"
+        })`;
+        sel.appendChild(opt);
+      });
+    }
+
+    // -------- 전체 렌더링 --------
+    function renderAll() {
+      renderLedger();
+      renderAnalysis();
+      renderFixedTab();
+      renderInvest();
+      renderAccounts();
+      updatePaymentOptions();
+    }
+
+    // -------- 이벤트 바인딩 --------
+    function setupEvents() {
+      document.getElementById("btn-filter").addEventListener("click", (e) => {
+        e.preventDefault();
+        renderLedger();
+      });
+
+      document.getElementById("btn-analysis-filter").addEventListener("click", (e) => {
+        e.preventDefault();
+        renderAnalysis();
+      });
+
+      // 지출 입력
+      document.getElementById("entry-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = new FormData(form);
+        const date = data.get("date");
+        const item = String(data.get("item") || "").trim();
+        const amount = parseFloat(String(data.get("amount") || "0"));
+        const type = data.get("type");
+        const paymentAccountId = data.get("paymentAccountId") || null;
+        const memo = String(data.get("memo") || "").trim();
+        if (!item || !amount || !date) return;
+
+        const manualCategory = data.get("category") || "";
+const text = `${item} ${memo}`;
+
+const entry = {
+  id: uuid(),
+  date,
+  item,
+  amount,
+  type,
+  category: manualCategory || categorize(text),
+  paymentAccountId,
+  memo,
+};
+        entries.push(entry);
+        applyEntryToAccounts(entry, false);
+        saveState();
+        renderAll();
+        form.reset();
+      });
+
+      // 고정비 추가
+      document.getElementById("fixed-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = new FormData(form);
+        const name = String(data.get("name") || "").trim();
+        const amount = parseFloat(String(data.get("amount") || "0"));
+        const category = String(data.get("category") || "").trim();
+        const note = String(data.get("note") || "").trim();
+        if (!name || !amount) return;
+        fixedItems.push({ id: uuid(), name, amount, category, note });
+        saveState();
+        renderAll();
+        form.reset();
+      });
+
+      // 투자 추가
+      document.getElementById("invest-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = new FormData(form);
+        const symbol = String(data.get("symbol") || "").toUpperCase().trim();
+        const qty = parseFloat(String(data.get("qty") || "0"));
+        const price = parseFloat(String(data.get("price") || "0"));
+        const date = data.get("date") || "";
+        const broker = String(data.get("broker") || "").trim();
+        if (!symbol || !qty || !price) return;
+        investLots.push({ id: uuid(), symbol, qty, price, date, broker });
+        saveState();
+        renderAll();
+        form.reset();
+      });
+
+      // 계좌 추가
+      document.getElementById("acct-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const form = e.target;
+        const data = new FormData(form);
+        const name = String(data.get("name") || "").trim();
+        const type = data.get("type") || "bank";
+        const balance = parseFloat(String(data.get("balance") || "0"));
+        if (!name) return;
+        accounts.push({ id: uuid(), name, type, balance: balance || 0 });
+        saveState();
+        renderAll();
+        form.reset();
+      });
+
+      // 계좌 이체 (카드값 결제 포함)
+      document.getElementById("transfer-form").addEventListener("submit", (e) => {
+        e.preventDefault();
+        const data = new FormData(e.target);
+        const fromId = data.get("fromId");
+        const toId = data.get("toId");
+        const amount = parseFloat(String(data.get("amount") || "0"));
+        if (!fromId || !toId || !amount) return;
+        if (fromId === toId) return alert("같은 계좌 간 이체는 의미가 없습니다.");
+
+        const from = findAccountById(fromId);
+        const to = findAccountById(toId);
+        if (!from || !to) return;
+
+        from.balance -= amount;
+        to.balance += amount;
+
+        saveState();
+        renderAll();
+      });
+
+      // JSON 백업
+      document.getElementById("btn-export").addEventListener("click", () => {
+        const blob = new Blob(
+          [JSON.stringify({ entries, fixedItems, investLots, accounts }, null, 2)],
+          { type: "application/json" }
+        );
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = `ledger_backup_${new Date().toISOString().slice(0, 10)}.json`;
+        a.click();
+      });
+
+      // JSON 불러오기
+      document.getElementById("import-file").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = () => {
+          try {
+            const data = JSON.parse(String(reader.result || "{}"));
+            entries = data.entries || [];
+            fixedItems = data.fixedItems || [];
+            investLots = data.investLots || [];
+            accounts = data.accounts || [];
+            saveState();
+            renderAll();
+          } catch {
+            alert("JSON 형식이 올바르지 않습니다.");
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // 전체 초기화
+      document.getElementById("btn-reset").addEventListener("click", () => {
+        if (!confirm("모든 데이터를 초기화하고 시드 데이터로 되돌릴까요?")) return;
+        initSeeds();
+        saveState();
+        renderAll();
+      });
+    }
+
+    // -------- 초기 실행 --------
+    loadState();
+    setupTabs();
+    setupEvents();
+    renderAll();
+  </script>
+</body>
+</html>
